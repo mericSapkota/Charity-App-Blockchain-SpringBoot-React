@@ -1,8 +1,13 @@
 import React from "react";
 import { useTheme, ThemeSwitcher } from "../contexts/ThemeContext";
 import { FaGlobe, FaQrcode } from "react-icons/fa";
+import DonatePage from "../pages/DonationPage";
+
+
 
 const Header = () => {
+
+
   const { isDark } = useTheme(); // --- ENHANCED COLOR DEFINITIONS ---
 
   const primaryText = isDark ? "text-blue-400" : "text-blue-600"; // Stronger shadow for the Donate button
@@ -36,23 +41,24 @@ const Header = () => {
                 {/* 🔗 Navigation Links (Desktop) */}       {" "}
         <div className="hidden md:flex space-x-6 items-center">
                    {" "}
-          <a href="#mission" className={`transition ${navTextColor}`}>
+          <a href="Mission" className={`transition ${navTextColor}`}>
             Mission
           </a>
                    {" "}
-          <a href="#how-it-works" className={`transition ${navTextColor}`}>
+          <a href="how-it-works" className={`transition ${navTextColor}`}>
             How it Works
           </a>
                     {/* Highlight the Blockchain Tracker link */}         {" "}
           <a
-            href="#blockchain"
+            href="blockchain-tracker"
             className={`font-semibold ${primaryText} transition`}
           >
             Blockchain Tracker
           </a>
                    {" "}
-          <button
-            className={`py-2 px-4 rounded-full font-medium ${secondaryBtn}`}
+          <button 
+        
+            className={`py-2 px-2 rounded-full font-medium ${secondaryBtn}`}
           >
                         Donate          {" "}
           </button>
