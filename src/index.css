@@ -1,1 +1,110 @@
 @import "tailwindcss";
+
+.tx-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 25, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.tx-card {
+  background: linear-gradient(145deg, #1e1e2f, #151520);
+  padding: 32px 40px;
+  border-radius: 20px;
+  text-align: center;
+  color: #fff;
+  width: 320px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: float 3s ease-in-out infinite;
+}
+
+.spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #7c7cff;
+  margin: 0 auto 20px;
+  animation: spin 1.2s linear infinite;
+}
+
+.tx-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.tx-hash {
+  font-family: monospace;
+  font-size: 14px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.tx-sub {
+  font-size: 13px;
+  opacity: 0.6;
+  margin-bottom: 14px;
+}
+
+.tx-card a {
+  font-size: 13px;
+  color: #9fa8ff;
+  text-decoration: none;
+}
+
+.tx-card a:hover {
+  text-decoration: underline;
+}
+.checkmark {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2ecc71, #27ae60);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: bold;
+  color: white;
+  margin: 0 auto 20px;
+  animation: pop 0.4s ease-out;
+}
+
+.tx-card.success {
+  box-shadow: 0 0 40px rgba(46, 204, 113, 0.4);
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  80% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
