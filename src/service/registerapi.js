@@ -10,6 +10,14 @@ export const addRegister = (registerData) => {
   });
 };
 
+export const editRegister = (registerData) => {
+  return axios.put(`http://localhost:8080/api/charityRequests/${registerData.id}`, registerData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 export const getAllRegisters = () => {
   return axios.get("http://localhost:8080/api/charityRequests");
 };
@@ -27,7 +35,7 @@ export const loadCharities = async (contractInstance) => {
     let charities = [];
     for (let i = 1; i <= Number(count); i++) {
       const charity = await contractInstance.charities(i);
-       // Only include active charities
+      // Only include active charities
       if (charity.isActive) {
         charities.push({
           id: i,

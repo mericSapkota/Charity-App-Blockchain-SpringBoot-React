@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { ethers } from "ethers";
-import { Wallet, Rocket, Calendar, Target, AlertCircle } from "lucide-react";
+import { Wallet, Rocket, Calendar, Target, AlertCircle, DollarSign, AlertTriangle } from "lucide-react";
 
 import { useWallet } from "../../contexts/WalletContext";
-
-// Replace with your deployed contract address
+import { saveCampaignToBackend } from "../../service/campaign";
 
 export default function CampaignCreation() {
-  const { connectWallet, contract, account } = useWallet();
+  const { contract, account } = useWallet();
   const [userCharityId, setUserCharityId] = useState(null);
   const [charityInfo, setCharityInfo] = useState(null);
+  const [userCharityName, setUserCharityName] = useState("");
 
   const [formData, setFormData] = useState({
     title: "",
@@ -23,15 +23,26 @@ export default function CampaignCreation() {
   const [events, setEvents] = useState([]);
   const [showLoader, setShowLoader] = useState(false);
   const [txHash, setTxHash] = useState("");
+  const [txStatus, setTxStatus] = useState("idle");
+
+  // Withdrawal states
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [charityBalance, setCharityBalance] = useState("0");
 
   // Connect wallet and check charity ownership
   useEffect(() => {
     if (contract && account) {
       checkCharityOwnership(contract, account);
       loadCampaigns(contract);
-      setupEventListeners(contract);
     }
   }, [contract, account]);
+
+  // Load charity balance when userCharityId changes
+  useEffect(() => {
+    if (contract && userCharityId) {
+      loadCharityBalance();
+    }
+  }, [contract, userCharityId, campaigns]); // Reload when campaigns update
 
   // Check if connected wallet owns any charity
   const checkCharityOwnership = async (contractInstance, walletAddress) => {
@@ -43,6 +54,7 @@ export default function CampaignCreation() {
 
         if (charity.wallet.toLowerCase() === walletAddress.toLowerCase()) {
           setUserCharityId(i);
+          setUserCharityName(charity.name);
           setCharityInfo({
             id: i,
             name: charity.name,
@@ -53,11 +65,20 @@ export default function CampaignCreation() {
         }
       }
 
-      // No charity found for this wallet
       setUserCharityId(null);
       setCharityInfo(null);
     } catch (error) {
       console.error("Error checking charity ownership:", error);
+    }
+  };
+
+  // Load charity balance
+  const loadCharityBalance = async () => {
+    try {
+      const balance = await contract.getCharityBalance(userCharityId);
+      setCharityBalance(ethers.formatEther(balance));
+    } catch (error) {
+      console.error("Error loading charity balance:", error);
     }
   };
 
@@ -79,8 +100,10 @@ export default function CampaignCreation() {
           description: campaign.description,
           goalAmount: ethers.formatEther(campaign.goalAmount),
           raisedAmount: ethers.formatEther(campaign.raisedAmount),
-          deadline: new Date(Number(campaign.deadline) * 1000).toLocaleDateString(),
+          deadline: new Date(Number(campaign.deadline) * 1000),
+          deadlineStr: new Date(Number(campaign.deadline) * 1000).toLocaleDateString(),
           isActive: campaign.isActive,
+          hasEnded: Number(campaign.deadline) * 1000 < Date.now(),
         });
       }
 
@@ -89,6 +112,17 @@ export default function CampaignCreation() {
       console.error("Error loading campaigns:", error);
     }
   };
+
+  useEffect(() => {
+    if (contract) {
+      setupEventListeners(contract);
+
+      return () => {
+        contract.removeAllListeners("CampaignCreated");
+        contract.removeAllListeners("FundsWithdrawn");
+      };
+    }
+  }, [contract]);
 
   // Setup event listeners
   const setupEventListeners = (contractInstance) => {
@@ -104,6 +138,22 @@ export default function CampaignCreation() {
 
       setEvents((prev) => [newEvent, ...prev].slice(0, 10));
       loadCampaigns(contractInstance);
+    });
+
+    // Listen for withdrawal events
+    contractInstance.on("FundsWithdrawn", (charityId, to, amount, event) => {
+      const newEvent = {
+        type: "FundsWithdrawn",
+        charityId: charityId.toString(),
+        to: to,
+        amount: ethers.formatEther(amount),
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setEvents((prev) => [newEvent, ...prev].slice(0, 10));
+      if (Number(charityId) === userCharityId) {
+        loadCharityBalance();
+      }
     });
   };
 
@@ -127,7 +177,6 @@ export default function CampaignCreation() {
     setLoading(true);
 
     try {
-      // Convert goal amount to wei
       const goalInWei = ethers.parseEther(formData.goalAmount);
 
       const tx = await contract.createCampaign(
@@ -140,24 +189,117 @@ export default function CampaignCreation() {
 
       console.log("Transaction sent:", tx.hash);
       setTxHash(tx.hash);
+      setTxStatus("pending");
       setShowLoader(true);
+
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
-      saveCampaignToBackend(formData, account);
+
+      saveCampaignToBackend(formData, account, userCharityName);
+
       setTxStatus("success");
 
       setTimeout(() => {
         setShowLoader(false);
-        setTxHash(null);
+        setTxHash("");
         setTxStatus("idle");
-      }, 1500);
-      // Clear form
-      setFormData({ title: "", description: "", goalAmount: "", durationDays: "" });
+      }, 2000);
 
-      alert("Campaign created successfully!");
+      setFormData({ title: "", description: "", goalAmount: "", durationDays: "" });
     } catch (error) {
       console.error("Error creating campaign:", error);
+      setTxStatus("idle");
+      setShowLoader(false);
       alert("Failed to create campaign: " + (error.reason || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Withdraw funds
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+      alert("Please enter a valid amount");
+      return;
+    }
+
+    if (parseFloat(withdrawAmount) > parseFloat(charityBalance)) {
+      alert("Insufficient balance");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const amountInWei = ethers.parseEther(withdrawAmount);
+
+      const tx = await contract.withdrawFunds(userCharityId, amountInWei);
+
+      console.log("Withdrawal transaction sent:", tx.hash);
+      setTxHash(tx.hash);
+      setTxStatus("pending");
+      setShowLoader(true);
+
+      const receipt = await tx.wait();
+      console.log("Withdrawal confirmed:", receipt);
+
+      setTxStatus("success");
+
+      setTimeout(() => {
+        setShowLoader(false);
+        setTxHash("");
+        setTxStatus("idle");
+      }, 2000);
+
+      setWithdrawAmount("");
+      await loadCharityBalance();
+
+      alert(`Successfully withdrew ${withdrawAmount} ETH`);
+    } catch (error) {
+      console.error("Error withdrawing funds:", error);
+      setTxStatus("idle");
+      setShowLoader(false);
+      alert("Withdrawal failed: " + (error.reason || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Emergency withdraw (only for contract owner)
+  const handleEmergencyWithdraw = async () => {
+    if (!window.confirm("⚠️ EMERGENCY WITHDRAW: This will withdraw ALL contract funds. Are you absolutely sure?")) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const tx = await contract.emergencyWithdraw();
+
+      console.log("Emergency withdrawal transaction sent:", tx.hash);
+      setTxHash(tx.hash);
+      setTxStatus("pending");
+      setShowLoader(true);
+
+      const receipt = await tx.wait();
+      console.log("Emergency withdrawal confirmed:", receipt);
+
+      setTxStatus("success");
+
+      setTimeout(() => {
+        setShowLoader(false);
+        setTxHash("");
+        setTxStatus("idle");
+      }, 2000);
+
+      await loadCharityBalance();
+
+      alert("Emergency withdrawal successful");
+    } catch (error) {
+      console.error("Error during emergency withdrawal:", error);
+      setTxStatus("idle");
+      setShowLoader(false);
+      alert("Emergency withdrawal failed: " + (error.reason || error.message));
     } finally {
       setLoading(false);
     }
@@ -166,21 +308,31 @@ export default function CampaignCreation() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-4">
       {showLoader && (
-        <div className="tx-overlay">
-          <div className={`tx-card ${txStatus}`}>
-            {txStatus === "pending" && <div className="spinner" />}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className={`bg-white rounded-lg p-8 max-w-sm w-full mx-4 ${txStatus === "success" ? "border-4 border-green-500" : ""}`}
+          >
+            {txStatus === "pending" && (
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mb-4" />
+                <p className="text-xl font-bold text-gray-800">Transaction in Progress</p>
+              </div>
+            )}
 
-            {txStatus === "success" && <div className="checkmark">✓</div>}
-
-            <p className="tx-title">{txStatus === "pending" ? "Transaction in progress" : "Transaction confirmed"}</p>
+            {txStatus === "success" && (
+              <div className="flex flex-col items-center">
+                <div className="text-6xl text-green-500 mb-4">✓</div>
+                <p className="text-xl font-bold text-gray-800">Transaction Confirmed!</p>
+              </div>
+            )}
 
             {txHash && (
-              <p className="tx-hash">
+              <p className="text-sm text-gray-600 mt-3 font-mono text-center">
                 {txHash.slice(0, 6)}...{txHash.slice(-4)}
               </p>
             )}
 
-            <p className="tx-sub">
+            <p className="text-sm text-gray-500 mt-2 text-center">
               {txStatus === "pending" ? "Waiting for blockchain confirmation" : "Funds secured on-chain"}
             </p>
           </div>
@@ -193,13 +345,9 @@ export default function CampaignCreation() {
           <h1 className="text-3xl font-bold text-gray-800 mb-4">Campaign Management</h1>
 
           {!account ? (
-            <button
-              onClick={connectWallet}
-              className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition"
-            >
-              <Wallet size={20} />
-              Connect Wallet
-            </button>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+              Please connect your wallet to continue
+            </div>
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-gray-600">
@@ -212,6 +360,7 @@ export default function CampaignCreation() {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="font-semibold text-green-800">Your Charity: {charityInfo.name}</p>
                   <p className="text-sm text-green-700">Charity ID: {charityInfo.id}</p>
+                  <p className="text-sm text-green-700 font-bold mt-1">Available Balance: {charityBalance} ETH</p>
                   <span
                     className={`inline-block mt-1 px-2 py-1 rounded text-xs ${charityInfo.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
                   >
@@ -308,31 +457,112 @@ export default function CampaignCreation() {
             )}
           </div>
 
-          {/* Live Events */}
+          {/* Withdraw Funds Section */}
           <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Campaign Events</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <DollarSign size={24} />
+              Withdraw Funds
+            </h2>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {events.length === 0 ? (
-                <p className="text-gray-500 text-sm">No events yet</p>
-              ) : (
-                events.map((event, idx) => (
-                  <div key={idx} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-semibold text-purple-800">Campaign Created</span>
-                      <span className="text-xs text-gray-500">{event.timestamp}</span>
-                    </div>
-                    <p className="text-sm text-gray-700">
-                      <strong>Title:</strong> {event.title}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      <strong>Goal:</strong> {event.goalAmount} ETH
-                    </p>
-                    <p className="text-sm text-gray-600">Campaign ID: {event.campaignId}</p>
+            {!userCharityId ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-600">
+                Connect a charity wallet to withdraw funds
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 mb-1">Available Balance</p>
+                  <p className="text-3xl font-bold text-blue-900">{charityBalance} ETH</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Withdrawal Amount (ETH)</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    placeholder="Enter amount to withdraw"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <button
+                    onClick={() => setWithdrawAmount(charityBalance)}
+                    className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+                  >
+                    Withdraw Max
+                  </button>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs">
+                  <p className="text-yellow-800">ℹ️ Platform fee will be deducted from withdrawal amount</p>
+                </div>
+
+                <button
+                  onClick={handleWithdraw}
+                  disabled={loading || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Processing..." : "Withdraw Funds"}
+                </button>
+
+                {/* Emergency Withdraw - Only show for contract owner */}
+                <div className="pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleEmergencyWithdraw}
+                    className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2 text-sm"
+                  >
+                    <AlertTriangle size={16} />
+                    Emergency Withdraw (Owner Only)
+                  </button>
+                  <p className="text-xs text-gray-500 mt-1 text-center">Only contract owner can use this</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Live Events */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Events</h2>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {events.length === 0 ? (
+              <p className="text-gray-500 text-sm">No events yet</p>
+            ) : (
+              events.map((event, idx) => (
+                <div
+                  key={idx}
+                  className={`border rounded-lg p-3 ${
+                    event.type === "CampaignCreated" ? "bg-purple-50 border-purple-200" : "bg-green-50 border-green-200"
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span
+                      className={`font-semibold ${
+                        event.type === "CampaignCreated" ? "text-purple-800" : "text-green-800"
+                      }`}
+                    >
+                      {event.type === "CampaignCreated" ? "Campaign Created" : "Funds Withdrawn"}
+                    </span>
+                    <span className="text-xs text-gray-500">{event.timestamp}</span>
                   </div>
-                ))
-              )}
-            </div>
+                  {event.type === "CampaignCreated" ? (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        <strong>Title:</strong> {event.title}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        <strong>Goal:</strong> {event.goalAmount} ETH
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-700">
+                      <strong>Amount:</strong> {event.amount} ETH
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -348,11 +578,16 @@ export default function CampaignCreation() {
                 <div key={campaign.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-lg text-gray-800">{campaign.title}</h3>
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${campaign.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
-                    >
-                      {campaign.isActive ? "Active" : "Ended"}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${campaign.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
+                      >
+                        {campaign.isActive ? "Active" : "Ended"}
+                      </span>
+                      {campaign.hasEnded && (
+                        <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800">Expired</span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-purple-600 mb-2">by {campaign.charityName}</p>
                   <p className="text-sm text-gray-600 mb-3">{campaign.description}</p>
@@ -368,7 +603,7 @@ export default function CampaignCreation() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Deadline:</span>
-                      <span>{campaign.deadline}</span>
+                      <span>{campaign.deadlineStr}</span>
                     </div>
                   </div>
 

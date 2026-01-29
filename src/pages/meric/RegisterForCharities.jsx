@@ -2,11 +2,12 @@ import { ethers } from "ethers";
 import React, { useContext, useEffect, useState } from "react";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../config/contract";
 import { Wallet, Plus, Activity, CheckCircle, Upload, FileText } from "lucide-react";
-import { addRegister, approveRegister, getAllRegisters, rejectRegister } from "../../service/registerapi";
+import { addRegister, approveRegister, editRegister, getAllRegisters, rejectRegister } from "../../service/registerapi";
 import Header from "../../components/Header";
 import { useWallet } from "../../contexts/WalletContext";
 import { FaRightFromBracket } from "react-icons/fa6";
 import { FaCheck } from "react-icons/fa";
+import { data } from "react-router-dom";
 
 const RegisterForCharities = () => {
   const { connectWallet, account, isOwner, contract } = useWallet();
@@ -27,7 +28,10 @@ const RegisterForCharities = () => {
   const [looading, setlooading] = useState(false);
   const [events, setEvents] = useState([]);
   const [registeredCharities, setRegisteredCharities] = useState([]);
-
+  const [txHash, setTxHash] = useState("");
+  const [txStatus, setTxStatus] = useState("idle");
+  const [showLoader, setShowLoader] = useState(false);
+  const [editForm, setEditFrom] = useState(false);
   useEffect(() => {
     if (!contract) return;
 
@@ -122,6 +126,23 @@ const RegisterForCharities = () => {
     }
   };
 
+  const editRequestForCharity = async (id) => {
+    const dataToSend = {
+      ...formData,
+      id: id,
+    };
+    try {
+      const response = await editRegister(dataToSend);
+      console.log(response.data);
+      //update the registered charities state
+      setRegisteredCharities((prev) =>
+        prev.map((charity) => (charity.id === response.data.id ? response.data : charity)),
+      );
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   const registerCharity = async (charity) => {
     if (!contract || !isOwner) {
       alert("You must be the contract owner to register charities");
@@ -139,19 +160,34 @@ const RegisterForCharities = () => {
       const tx = await contract.registerCharity(charity.wallet, charity.name, charity.description);
 
       console.log("Transaction sent:", tx.hash);
-
+      setTxHash(tx.hash);
+      setShowLoader(true);
       // Wait for transaction confirmation
       const receipt = await tx.wait();
+
       console.log("Transaction confirmed:", receipt);
 
       // Clear form
       setFormData({ wallet: "", name: "", description: "" });
 
       const response = await approveRegister(charity.id);
-      alert("Charity registered successfully!");
+      setTxStatus("success");
+
+      setTimeout(() => {
+        setShowLoader(false);
+        setTxHash(null);
+        setTxStatus("idle");
+      }, 1500);
     } catch (error) {
       console.error("Error registering charity:", error);
       alert("Failed to register charity: " + (error.reason || error.message));
+      setTxStatus("failwd");
+
+      setTimeout(() => {
+        setShowLoader(false);
+        setTxHash(null);
+        setTxStatus("idle");
+      }, 1500);
     } finally {
       setlooading(false);
     }
@@ -160,7 +196,14 @@ const RegisterForCharities = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     try {
-      sendRequestForCharity();
+      if (!editForm) {
+        sendRequestForCharity();
+      } else {
+        const charityIdToEdit = registeredCharities.find(
+          (charity) => charity.wallet.toLowerCase() === account.toLowerCase(),
+        ).id;
+        editRequestForCharity(charityIdToEdit);
+      }
     } catch (e) {
       console.log(error);
     }
@@ -185,11 +228,49 @@ const RegisterForCharities = () => {
       console.log(e);
     }
   };
-
+  const editCharityForm = () => {
+    setEditFrom(true);
+    setRegisterPressed(true);
+    const charityToEdit = registeredCharities.find((charity) => charity.wallet.toLowerCase() === account.toLowerCase());
+    if (charityToEdit) {
+      setFormData({
+        wallet: charityToEdit.wallet,
+        name: charityToEdit.name,
+        description: charityToEdit.description,
+        // logo and verification cannot be prefilled
+        logo: "",
+        verification: "",
+        email: charityToEdit.email || "",
+      });
+    }
+    //scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   return (
     <>
       <Header />
       <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
+        {showLoader && (
+          <div className="tx-overlay">
+            <div className={`tx-card ${txStatus}`}>
+              {txStatus === "pending" && <div className="spinner" />}
+
+              {txStatus === "success" && <div className="checkmark">✓</div>}
+
+              <p className="tx-title">{txStatus === "pending" ? "Transaction in progress" : "Transaction confirmed"}</p>
+
+              {txHash && (
+                <p className="tx-hash">
+                  {txHash.slice(0, 6)}...{txHash.slice(-4)}
+                </p>
+              )}
+
+              <p className="tx-sub">
+                {txStatus === "pending" ? "Waiting for blockchain confirmation" : "Funds secured on-chain"}
+              </p>
+            </div>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
@@ -432,6 +513,7 @@ const RegisterForCharities = () => {
                   <div key={charity.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-semibold text-lg text-gray-800">{charity.name}</h3>
+
                       <span
                         className={`px-2 py-1 rounded text-xs ${
                           charity.status === "APPROVED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
@@ -446,7 +528,7 @@ const RegisterForCharities = () => {
                     </div>
                     <p className="text-sm text-gray-600 mb-2">{charity.description}</p>
                     <p className="text-xs text-gray-500 font-mono">Wallet: {charity.wallet}</p>
-                    {isOwner && (
+                    {isOwner || account === charity.wallet ? (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mt-2">Logo:</label>
                         <img
@@ -461,9 +543,16 @@ const RegisterForCharities = () => {
                           className="w-full h-72  object-contain mt-2"
                         />
                       </div>
+                    ) : (
+                      ""
                     )}
                     <div className="mt-4 flex items-center justify-between">
                       <span className="text-xs text-gray-400">ID: {charity.id}</span>
+                      {account === charity.wallet && (
+                        <button onClick={editCharityForm} className="text-blue-500 hover:text-blue-700 cursor-pointer">
+                          Edit
+                        </button>
+                      )}
                       {isOwner && charity.status === "PENDING" && (
                         <div>
                           <button
