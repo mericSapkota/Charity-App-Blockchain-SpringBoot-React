@@ -6,22 +6,17 @@ import Mission from "./pages/Mission";
 import HowItWorksPage from "./pages/HowItWorks";
 import BlockchainTrackerPage from "./pages/BlockChainTracker";
 import DonatePage from "./pages/DonationPage";
-import UserLoginPage from "./pages/UserLogin";
-import AdminLoginPage from "./pages/AdminLogin";
 import FAQPage from "./pages/FAQPage";
 import PrivacyPolicyPage from "./pages/Privacy";
 import TermsOfServicePage from "./pages/TermsOfService";
 import ContactUsPage from "./pages/ContactUs";
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminUsersPage from "./pages/UserManagement";
-import AdminReportsPage from "./pages/AdminReportPage";
-import AdminMilestoneVerificationPage from "./pages/MilestoneVerification";
-import AdminLedgerAuditPage from "./pages/AdminLedgerAuditPage";
-import AdminNetworkConfigPage from "./pages/ConfigureSmartContract";
 import RegisterForCharities from "./pages/meric/RegisterForCharities";
 import { WalletProvider } from "./contexts/WalletContext";
 import CampaignCreation from "./pages/meric/CampaignCreation";
 import CharityDashboard from "./pages/CharityDashboard";
+import AdminHistory from "./pages/meric/AdminHistory";
+import DonationHistory from "./pages/meric/DonationHistory";
 
 const App = () => {
   return (
@@ -34,14 +29,9 @@ const App = () => {
               <Route path="/mission" element={<Mission />}></Route>
               <Route path="/how-it-works" element={<HowItWorksPage />}></Route>
               <Route path="/blockchain-tracker" element={<BlockchainTrackerPage />}></Route>
-              <Route path="/login" element={<UserLoginPage />}></Route>
-              <Route path="/admin/login" element={<AdminLoginPage />}></Route>
               <Route path="/admin/dashboard" element={<AdminDashboard />}></Route>
-              <Route path="/admin/users" element={<AdminUsersPage />}></Route>
-              <Route path="/admin/reports" element={<AdminReportsPage />}></Route>
-              <Route path="/admin/milestone-verify" element={<AdminMilestoneVerificationPage />}></Route>
-              <Route path="/admin/ledger-audit" element={<AdminLedgerAuditPage />}></Route>
-              <Route path="/admin/network-config" element={<AdminNetworkConfigPage />}></Route>
+              <Route path="/admin/history" element={<AdminHistory />}></Route>
+              <Route path="/donation-history" element={<DonationHistory />}></Route>
               <Route path="/donation" element={<DonatePage />}></Route>
               <Route path="/faq" element={<FAQPage />}></Route>
               <Route path="/privacy" element={<PrivacyPolicyPage />}></Route>

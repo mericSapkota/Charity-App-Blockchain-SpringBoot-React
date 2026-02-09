@@ -3,6 +3,7 @@ import { useTheme, ThemeSwitcher } from "../contexts/ThemeContext";
 import { FaBars, FaClock, FaDoorClosed, FaGlobe, FaQrcode, FaSignOutAlt } from "react-icons/fa";
 import { useWallet } from "../contexts/WalletContext";
 import { FaClockRotateLeft } from "react-icons/fa6";
+import { BookAIcon } from "lucide-react";
 
 const Header = () => {
   const { isDark } = useTheme(); // --- ENHANCED COLOR DEFINITIONS ---
@@ -28,7 +29,7 @@ const Header = () => {
           className="flex items-center space-x-2 cursor-pointer hover:opacity-90 transition" // Added hover effect
         >
           <FaGlobe className={`text-3xl ${primaryText}`} />
-          <span className={`text-2xl font-extrabold ${isDark ? "text-white" : "text-zinc-800"}`}>Impact Ledger</span>
+          <span className={`text-2xl font-extrabold ${isDark ? "text-white" : "text-zinc-800"}`}>ChainHeart</span>
         </a>
         {/* <-- CLOSING ANCHOR TAG */} {/* 🔗 Navigation Links (Desktop) */}
         <div className="hidden md:flex space-x-6 items-center">
@@ -70,16 +71,18 @@ const Header = () => {
             )}
           </a>
           {account && showOptions && (
-            <div className="absolute  top-16 w-40 rounded-xl  bg-white shadow-lg border border-gray-200 z-50">
+            <div
+              className={`absolute top-16 w-40 rounded-xl shadow-lg border border-gray-200 z-50 ${isDark ? "bg-black" : " bg-white"}`}
+            >
               <button
-                className="w-full text-left cursor-pointer px-4 py-2 hover:bg-gray-100 rounded-t-xl"
+                className="w-full text-left cursor-pointer px-4 py-2   rounded-t-xl"
                 onClick={() => {
                   // navigate to history page
-                  console.log("History clicked");
+                  isOwner ? (window.location.href = "/admin/dashboard") : (window.location.href = "/donation-history");
                   setShowOptions(false);
                 }}
               >
-                <FaClockRotateLeft className="inline mr-2" /> History
+                <BookAIcon className={`inline mr-2 ${isDark ? "text-white" : "text-zinc-800"}`} /> Dashboard
               </button>
 
               <button

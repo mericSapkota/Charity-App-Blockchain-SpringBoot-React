@@ -8,9 +8,7 @@ const MissionPage = () => {
   const { isDark } = useTheme();
 
   // 1. Global Page Styles (Matches Homepage)
-  const themeClasses = isDark
-    ? "bg-zinc-900 text-zinc-100"
-    : "bg-white text-zinc-900";
+  const themeClasses = isDark ? "bg-zinc-900 text-zinc-100" : "bg-white text-zinc-900";
 
   // 2. Component Colors
   const primaryHighlight = isDark ? "text-blue-400" : "text-blue-600";
@@ -40,25 +38,16 @@ const MissionPage = () => {
   ];
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${themeClasses} flex flex-col`}
-    >
+    <div className={`min-h-screen transition-colors duration-300 ${themeClasses} flex flex-col`}>
       <Header />
 
       <main className="flex-grow">
         {/* ヒーローセクション (Mission Focus) */}
         <section className={`py-20 text-center ${lightBg}`}>
           <div className="max-w-4xl mx-auto px-4">
-            <h1 className="text-5xl font-extrabold mb-3">
-              Our Mission: Trust, Powered by Tech.
-            </h1>
-            <p
-              className={`text-xl ${
-                isDark ? "text-zinc-400" : "text-zinc-600"
-              }`}
-            >
-              Redefining charitable giving through 100% auditable blockchain
-              technology.
+            <h1 className="text-5xl font-extrabold mb-3">Our Mission: Trust, Powered by Tech.</h1>
+            <p className={`text-xl ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>
+              Redefining charitable giving through 100% auditable blockchain technology.
             </p>
           </div>
         </section>
@@ -66,9 +55,7 @@ const MissionPage = () => {
         {/* --- 1. Core Principles --- */}
         <section className={`py-16 ${darkBg}`}>
           <div className="max-w-7xl mx-auto px-6">
-            <h2
-              className={`text-4xl font-bold text-center mb-12 ${primaryHighlight}`}
-            >
+            <h2 className={`text-4xl font-bold text-center mb-12 ${primaryHighlight}`}>
               The Three Pillars of Impact Ledger
             </h2>
 
@@ -81,18 +68,10 @@ const MissionPage = () => {
                   }`}
                 >
                   <p.icon className={`w-12 h-12 mb-4 ${iconColor}`} />
-                  <h3
-                    className={`text-2xl font-semibold mb-3 ${
-                      isDark ? "text-white" : "text-zinc-800"
-                    }`}
-                  >
+                  <h3 className={`text-2xl font-semibold mb-3 ${isDark ? "text-white" : "text-zinc-800"}`}>
                     {p.title}
                   </h3>
-                  <p
-                    className={`${isDark ? "text-zinc-300" : "text-zinc-600"}`}
-                  >
-                    {p.detail}
-                  </p>
+                  <p className={`${isDark ? "text-zinc-300" : "text-zinc-600"}`}>{p.detail}</p>
                 </div>
               ))}
             </div>
@@ -103,38 +82,27 @@ const MissionPage = () => {
         <section className={`py-16 ${lightBg}`}>
           <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className={`text-3xl font-bold mb-4 ${primaryHighlight}`}>
-                Why We Chose the Blockchain
-              </h2>
+              <h2 className={`text-3xl font-bold mb-4 ${primaryHighlight}`}>Why We Chose the Blockchain</h2>
               <p className="mb-4 text-lg">
-                Traditional non-profits struggle with the perception of high
-                overhead and opaque fund usage. We eliminate this doubt entirely
-                by hosting our financial ledger on a **decentralized network**.
+                Traditional non-profits struggle with the perception of high overhead and opaque fund usage. We
+                eliminate this doubt entirely by hosting our financial ledger on a decentralized network .
               </p>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li className={isDark ? "text-zinc-300" : "text-zinc-600"}>
-                  **Immutability:** Once a donation is recorded, it cannot be
-                  altered.
+                  Immutability: Once a donation is recorded, it cannot be altered.
                 </li>
                 <li className={isDark ? "text-zinc-300" : "text-zinc-600"}>
-                  **Public Access:** Anyone, anywhere, can verify transaction
-                  paths.
+                  Public Access: Anyone, anywhere, can verify transaction paths.
                 </li>
                 <li className={isDark ? "text-zinc-300" : "text-zinc-600"}>
-                  **Efficiency:** Reduces administrative costs, maximizing
-                  impact per dollar.
+                  Efficiency: Reduces administrative costs, maximizing impact per dollar.
                 </li>
               </ul>
             </div>
             <div className="p-6 rounded-lg bg-white/10 border border-solid border-gray-300/50">
               {/*  */}
-              <p
-                className={`italic text-center ${
-                  isDark ? "text-zinc-400" : "text-zinc-500"
-                }`}
-              >
-                "Trust is earned through transparency. We automate that
-                process."
+              <p className={`italic text-center ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+                "Trust is earned through transparency. We automate that process."
               </p>
             </div>
           </div>
@@ -142,16 +110,10 @@ const MissionPage = () => {
 
         {/* --- 3. Final Call to Action --- */}
         <section className={`py-16 text-center ${darkBg}`}>
-          <h2 className={`text-4xl font-bold mb-4 ${primaryHighlight}`}>
-            Join the Revolution of Transparent Giving
-          </h2>
-          <p
-            className={`text-xl mb-8 max-w-2xl mx-auto ${
-              isDark ? "text-zinc-300" : "text-zinc-700"
-            }`}
-          >
-            Our mission is only possible with your support. Verify our
-            commitment and make a secure, traceable donation today.
+          <h2 className={`text-4xl font-bold mb-4 ${primaryHighlight}`}>Join the Revolution of Transparent Giving</h2>
+          <p className={`text-xl mb-8 max-w-2xl mx-auto ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+            Our mission is only possible with your support. Verify our commitment and make a secure, traceable donation
+            today.
           </p>
           <a
             href="/donate"

@@ -1,9 +1,8 @@
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { FaLock, FaEthereum, FaCheckCircle, FaClock } from "react-icons/fa";
 import { useWallet } from "../contexts/WalletContext";
-
-// Replace with your actual contract address
+import { saveDonation, saveTransactionHistory } from "../service/HistoryService";
 
 const DonatePage = () => {
   const [amount, setAmount] = useState("");
@@ -14,9 +13,15 @@ const DonatePage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredCampaigns, setFilteredCampaigns] = useState([]);
   const [txHash, setTxHash] = useState(null);
-  const [txStatus, setTxStatus] = useState("idle"); // idle, pending, success, failed
+  const [txStatus, setTxStatus] = useState("idle");
   const [showLoader, setShowLoader] = useState(false);
-  const isDark = false; // Set based on your theme context
+
+  // Optional fields for enhanced tracking
+  const [donationMessage, setDonationMessage] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
+  const isDark = false;
   const themeClasses = isDark ? "bg-zinc-900 text-zinc-100" : "bg-white text-zinc-900";
   const primaryHighlight = isDark ? "text-blue-400" : "text-blue-600";
   const lightBg = isDark ? "bg-zinc-800" : "bg-gray-50";
@@ -25,7 +30,7 @@ const DonatePage = () => {
 
   const presetAmounts = [0.01, 0.05, 0.1, 0.5];
   const { contract, account } = useWallet();
-  // Connect wallet
+
   useEffect(() => {
     if (searchQuery.trim() === "") {
       setFilteredCampaigns(campaigns);
@@ -38,29 +43,45 @@ const DonatePage = () => {
       setFilteredCampaigns(filtered);
     }
   }, [searchQuery, campaigns]);
+
   useEffect(() => {
     if (!contract) return;
     async function fetchCampaigns() {
       await loadActiveCampaigns(contract);
     }
     fetchCampaigns();
-    // Setup event listeners
   }, [contract]);
 
   useEffect(() => {
     if (contract) {
-      setupEventListeners(contract);
+      const handler = (charityId, campaignId, donor, amount, event) => {
+        const newEvent = {
+          campaignId: campaignId.toString(),
+          donor: donor,
+          amount: ethers.formatEther(amount),
+          timestamp: new Date().toLocaleTimeString(),
+        };
+
+        setDonationEvents((prev) => [newEvent, ...prev].slice(0, 5));
+        loadActiveCampaigns(contract);
+      };
+
+      contract.on("DonationReceived", handler);
 
       return () => {
-        contract.removeAllListeners("DonationReceived");
+        try {
+          contract.off("DonationReceived", handler);
+        } catch (err) {
+          console.warn("Error removing DonationReceived handler:", err);
+        }
       };
     }
   }, [contract]);
 
-  // Load active campaigns from blockchain
   const loadActiveCampaigns = async (contractInstance) => {
     try {
       const count = await contractInstance.campaignCount();
+      console.log(count);
       const campaignList = [];
 
       for (let i = 1; i <= Number(count); i++) {
@@ -77,6 +98,7 @@ const DonatePage = () => {
             id: i,
             charityId: Number(campaign.charityId),
             charityName: charity.name,
+            charityWallet: charity.wallet,
             title: campaign.title,
             description: campaign.description,
             goalAmount: goalInEth,
@@ -89,7 +111,7 @@ const DonatePage = () => {
       }
 
       setCampaigns(campaignList);
-      setFilteredCampaigns(campaignList); // Add this line
+      setFilteredCampaigns(campaignList);
       if (campaignList.length > 0 && !selectedCampaign) {
         setSelectedCampaign(campaignList[0]);
       }
@@ -98,24 +120,8 @@ const DonatePage = () => {
     }
   };
 
-  // Setup event listeners
-  const setupEventListeners = (contractInstance) => {
-    contractInstance.on("DonationReceived", (charityId, campaignId, donor, amount, event) => {
-      const newEvent = {
-        campaignId: campaignId.toString(),
-        donor: donor,
-        amount: ethers.formatEther(amount),
-        timestamp: new Date().toLocaleTimeString(),
-      };
+  // DonationPage listens using a named handler in the effect above; no global removeAllListeners.
 
-      setDonationEvents((prev) => [newEvent, ...prev].slice(0, 5));
-
-      // Reload campaigns to update raised amounts
-      loadActiveCampaigns(contractInstance);
-    });
-  };
-
-  // Donate to campaign
   const handleDonate = async (e) => {
     e.preventDefault();
 
@@ -125,38 +131,138 @@ const DonatePage = () => {
     }
 
     setLoading(true);
+    setShowLoader(true);
+    setTxStatus("pending");
 
     try {
-      // Convert ETH to wei
       const amountInWei = ethers.parseEther(amount.toString());
 
-      // Call donateToCampaign function with ETH value
+      // Send transaction to blockchain
       const tx = await contract.donateToCampaign(selectedCampaign.id, {
         value: amountInWei,
       });
 
       console.log("Transaction sent:", tx.hash);
       setTxHash(tx.hash);
-      setTxStatus("pending");
-      setShowLoader(true);
-      // Wait for confirmation
+
+      // STEP 1: Save transaction to backend immediately (status: pending)
+      try {
+        await saveTransactionHistory({
+          txHash: tx.hash,
+          from: account,
+          to: selectedCampaign.charityWallet,
+          amount: amount,
+          type: "donation",
+          charityId: selectedCampaign.charityId,
+          campaignId: selectedCampaign.id,
+          status: "pending",
+          timestamp: new Date().toISOString(),
+          metadata: JSON.stringify({
+            message: donationMessage,
+            isAnonymous: isAnonymous,
+            campaignTitle: selectedCampaign.title,
+            charityName: selectedCampaign.charityName,
+          }),
+        });
+      } catch (backendError) {
+        console.error("Failed to save pending transaction:", backendError);
+        // Continue anyway - don't block the donation
+      }
+
+      // Wait for blockchain confirmation
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
       setTxStatus("success");
 
+      // STEP 2: Save donation record to backend
+      try {
+        const donationData = {
+          txHash: tx.hash,
+          donorAddress: account,
+          charityId: selectedCampaign.charityId,
+          charityName: selectedCampaign.charityName,
+          campaignId: selectedCampaign.id,
+          campaignTitle: selectedCampaign.title,
+          amount: amount,
+          timestamp: new Date().toISOString(),
+          blockNumber: receipt.blockNumber,
+          message: donationMessage,
+          isAnonymous: isAnonymous,
+        };
+
+        await saveDonation(donationData);
+
+        // STEP 3: Update transaction status to success
+        await saveTransactionHistory({
+          txHash: tx.hash,
+          from: account,
+          to: selectedCampaign.charityWallet,
+          amount: amount,
+          type: "donation",
+          charityId: selectedCampaign.charityId,
+          campaignId: selectedCampaign.id,
+          status: "success",
+          blockNumber: receipt.blockNumber,
+          timestamp: new Date().toISOString(),
+          metadata: JSON.stringify({
+            message: donationMessage,
+            isAnonymous: isAnonymous,
+            campaignTitle: selectedCampaign.title,
+            charityName: selectedCampaign.charityName,
+          }),
+        });
+
+        console.log("Donation saved to backend successfully");
+      } catch (backendError) {
+        console.error("Failed to save donation to backend:", backendError);
+        // Transaction succeeded on blockchain, just backend logging failed
+        alert(
+          "Donation successful on blockchain, but failed to save to history. Please contact support with transaction hash: " +
+            tx.hash,
+        );
+      }
+
+      // Success - reset form
       setTimeout(() => {
         setShowLoader(false);
         setTxHash("");
         setTxStatus("idle");
+        setAmount("");
+        setDonationMessage("");
+        setIsAnonymous(false);
+        setShowAdvancedOptions(false);
       }, 2000);
 
-      // Clear amount
-      setAmount("");
-
-      // Reload campaigns
+      // Reload campaigns to show updated amounts
       await loadActiveCampaigns(contract);
     } catch (error) {
       console.error("Error donating:", error);
+      setTxStatus("failed");
+
+      // Save failed transaction to backend
+      if (txHash) {
+        try {
+          await saveTransactionHistory({
+            txHash: txHash,
+            from: account,
+            to: selectedCampaign.charityWallet,
+            amount: amount,
+            type: "donation",
+            charityId: selectedCampaign.charityId,
+            campaignId: selectedCampaign.id,
+            status: "failed",
+            timestamp: new Date().toISOString(),
+            metadata: JSON.stringify({
+              error: error.message || error.reason,
+              message: donationMessage,
+              isAnonymous: isAnonymous,
+            }),
+          });
+        } catch (backendError) {
+          console.error("Failed to save failed transaction:", backendError);
+        }
+      }
+
       setTimeout(() => {
         setShowLoader(false);
         setTxHash("");
@@ -176,10 +282,17 @@ const DonatePage = () => {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
+      {/* Transaction Loader Modal */}
       {showLoader && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div
-            className={`bg-white rounded-lg p-8 max-w-sm w-full mx-4 ${txStatus === "success" ? "border-4 border-green-500" : ""}`}
+            className={`bg-white rounded-lg p-8 max-w-sm w-full mx-4 ${
+              txStatus === "success"
+                ? "border-4 border-green-500"
+                : txStatus === "failed"
+                  ? "border-4 border-red-500"
+                  : ""
+            }`}
           >
             {txStatus === "pending" && (
               <div className="flex flex-col items-center">
@@ -191,7 +304,16 @@ const DonatePage = () => {
             {txStatus === "success" && (
               <div className="flex flex-col items-center">
                 <div className="text-6xl text-green-500 mb-4">✓</div>
-                <p className="text-xl font-bold text-gray-800">Transaction Confirmed!</p>
+                <p className="text-xl font-bold text-gray-800">Thank You! 🎉</p>
+                <p className="text-sm text-gray-600 mt-2">Your donation has been confirmed</p>
+              </div>
+            )}
+
+            {txStatus === "failed" && (
+              <div className="flex flex-col items-center">
+                <div className="text-6xl text-red-500 mb-4">✗</div>
+                <p className="text-xl font-bold text-gray-800">Transaction Failed</p>
+                <p className="text-sm text-gray-600 mt-2">Please try again</p>
               </div>
             )}
 
@@ -202,11 +324,16 @@ const DonatePage = () => {
             )}
 
             <p className="text-sm text-gray-500 mt-2 text-center">
-              {txStatus === "pending" ? "Waiting for blockchain confirmation" : "Funds secured on-chain"}
+              {txStatus === "pending"
+                ? "Waiting for blockchain confirmation"
+                : txStatus === "success"
+                  ? "Funds secured on-chain"
+                  : "Transaction rejected"}
             </p>
           </div>
         </div>
       )}
+
       {/* Header Section */}
       <section className={`py-16 text-center ${lightBg}`}>
         <div className="max-w-4xl mx-auto px-4">
@@ -345,6 +472,46 @@ const DonatePage = () => {
                 />
               </div>
 
+              {/* Advanced Options Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                className="text-sm text-blue-600 hover:text-blue-700 mb-4 flex items-center gap-2"
+              >
+                {showAdvancedOptions ? "▼" : "▶"} Advanced Options
+              </button>
+
+              {/* Advanced Options */}
+              {showAdvancedOptions && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Message (Optional)</label>
+                    <textarea
+                      value={donationMessage}
+                      onChange={(e) => setDonationMessage(e.target.value)}
+                      placeholder="Leave a message of support..."
+                      rows="3"
+                      maxLength="500"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{donationMessage.length}/500 characters</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="anonymous"
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <label htmlFor="anonymous" className="text-sm text-gray-700">
+                      Donate anonymously (hide my wallet address from public leaderboards)
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Summary */}
               {selectedCampaign && amount && (
                 <div className="p-4 border-2 border-green-500 rounded-lg text-center my-6 bg-green-50">
@@ -352,6 +519,12 @@ const DonatePage = () => {
                     Donating <span className="text-green-600">{amount} ETH</span>
                   </p>
                   <p className="text-sm text-gray-600">to {selectedCampaign.title}</p>
+                  {donationMessage && (
+                    <p className="text-xs text-gray-500 mt-2 italic">
+                      "{donationMessage.substring(0, 50)}
+                      {donationMessage.length > 50 ? "..." : ""}"
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -368,6 +541,11 @@ const DonatePage = () => {
                 <FaEthereum />
                 {loading ? "Processing..." : `Donate ${amount || "0"} ETH`}
               </button>
+
+              {/* Fee Notice */}
+              <p className="text-xs text-gray-500 text-center mt-3">
+                Platform fee (2.5%) is deducted when charities withdraw funds
+              </p>
             </div>
           </div>
 
@@ -393,6 +571,12 @@ const DonatePage = () => {
                   <FaCheckCircle className="text-green-500 mt-1 flex-shrink-0" />
                   <span>
                     <strong>Smart Contract:</strong> Automated, tamper-proof distribution
+                  </span>
+                </li>
+                <li className={`flex items-start space-x-2 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+                  <FaCheckCircle className="text-green-500 mt-1 flex-shrink-0" />
+                  <span>
+                    <strong>Your Impact Tracked:</strong> View your donation history anytime
                   </span>
                 </li>
               </ul>

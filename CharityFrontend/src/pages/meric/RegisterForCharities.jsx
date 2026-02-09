@@ -65,7 +65,28 @@ const RegisterForCharities = () => {
   useEffect(() => {
     if (contract) {
       checkExistingCharity();
-      setupEventListeners(contract);
+      const handler = (charityId, name, wallet, event) => {
+        const newEvent = {
+          type: "CharityRegistered",
+          charityId: charityId.toString(),
+          name: name,
+          wallet: wallet,
+          blockNumber: event.log.blockNumber,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+
+        setEvents((prev) => [newEvent, ...prev].slice(0, 10));
+        loadCharities(contract);
+      };
+
+      contract.on("CharityRegistered", handler);
+      return () => {
+        try {
+          contract.off("CharityRegistered", handler);
+        } catch (err) {
+          console.warn("Error removing CharityRegistered handler:", err);
+        }
+      };
     }
   }, [contract]);
 
@@ -96,24 +117,7 @@ const RegisterForCharities = () => {
     }
   };
 
-  const setupEventListeners = (contractInstance) => {
-    // Listen for CharityRegistered events
-    contractInstance.on("CharityRegistered", (charityId, name, wallet, event) => {
-      const newEvent = {
-        type: "CharityRegistered",
-        charityId: charityId.toString(),
-        name: name,
-        wallet: wallet,
-        blockNumber: event.log.blockNumber,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-
-      setEvents((prev) => [newEvent, ...prev].slice(0, 10)); // Keep last 10 events
-
-      // Reload charities
-      loadCharities(contractInstance);
-    });
-  };
+  // Charity registration events are handled in the effect above with a named handler.
 
   const sendRequestForCharity = async () => {
     console.log(formData);

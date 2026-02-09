@@ -1,5 +1,5 @@
-export const CONTRACT_ADDRESS = "0x604867b521d65817eadcdf906a610108d5ee336c"; //sepolia testnet address
-// export const CONTRACT_ADDRESS = "0x5fbdb2315678afecb367f032d93f642f64180aa3"; //HARDHAT address
+// export const CONTRACT_ADDRESS = "0x604867b521d65817eadcdf906a610108d5ee336c"; //sepolia testnet address
+export const CONTRACT_ADDRESS = "0x5fbdb2315678afecb367f032d93f642f64180aa3"; //HARDHAT address
 
 export const CONTRACT_ABI = [
   {

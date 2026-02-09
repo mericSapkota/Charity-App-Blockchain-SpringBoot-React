@@ -21,8 +21,7 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 
 export default function AdminDashboard() {
-  const { connectWallet, contract, account } = useWallet();
-
+  const { connectWallet, contract, account, recentActivity } = useWallet();
   // State management
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,7 +38,6 @@ export default function AdminDashboard() {
   // Charities data
   const [charities, setCharities] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
 
   // Forms
   const [showCharityForm, setShowCharityForm] = useState(false);
@@ -62,7 +60,6 @@ export default function AdminDashboard() {
     if (contract && account) {
       checkOwnership();
       loadDashboardData();
-      setupEventListeners();
     }
   }, [contract, account]);
 
@@ -168,51 +165,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Setup event listeners
-  const setupEventListeners = () => {
-    contract.on("CharityRegistered", (charityId, name, wallet) => {
-      const newActivity = {
-        type: "CharityRegistered",
-        message: `New charity registered: ${name}`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setRecentActivity((prev) => [newActivity, ...prev].slice(0, 10));
-      loadCharities();
-      loadPlatformStats();
-    });
-
-    contract.on("CharityStatusChanged", (charityId, isActive) => {
-      const newActivity = {
-        type: "CharityStatusChanged",
-        message: `Charity #${charityId} ${isActive ? "activated" : "deactivated"}`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setRecentActivity((prev) => [newActivity, ...prev].slice(0, 10));
-      loadCharities();
-    });
-
-    contract.on("PlatformFeeUpdated", (newFee) => {
-      const newActivity = {
-        type: "PlatformFeeUpdated",
-        message: `Platform fee updated to ${Number(newFee) / 100}%`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setRecentActivity((prev) => [newActivity, ...prev].slice(0, 10));
-      loadPlatformStats();
-    });
-
-    contract.on("DonationReceived", (charityId, campaignId, donor, amount) => {
-      const newActivity = {
-        type: "DonationReceived",
-        message: `${ethers.formatEther(amount)} ETH donated to ${Number(campaignId) === 0 ? "charity" : "campaign"} #${Number(campaignId) || Number(charityId)}`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setRecentActivity((prev) => [newActivity, ...prev].slice(0, 10));
-      loadPlatformStats();
-      loadCharities();
-      if (Number(campaignId) > 0) loadCampaigns();
-    });
-  };
+  // Event listeners are centralized in WalletContext; Admin consumes `recentActivity` from context.
 
   // Register new charity
   const registerCharity = async () => {
@@ -421,30 +374,48 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-                <Shield className="w-10 h-10 text-purple-400" />
+                <Shield className="w-10 h-10 text-blue-400" />
                 Admin Dashboard
               </h1>
               <p className="text-gray-400">Contract Owner Controls</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20">
-              <p className="text-xs text-gray-400 mb-1">Connected Wallet</p>
-              <p className="text-white font-mono text-sm">
-                {account.slice(0, 6)}...{account.slice(-4)}
-              </p>
+            <div className="flex items-center gap-4">
+              {/* <div className="bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20">
+                <p className="text-xs text-gray-400 mb-1">Connected Wallet</p>
+                <p className="text-white font-mono text-sm">
+                  {account.slice(0, 6)}...{account.slice(-4)}
+                </p>
+              </div> */}
+              <div
+                className="text-white cursor-pointer bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20"
+                onClick={() => {
+                  window.location.href = "/admin/history";
+                }}
+              >
+                History
+              </div>
+              <div
+                className="text-white cursor-pointer bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20"
+                onClick={() => {
+                  window.location.href = "/admin/dashboard";
+                }}
+              >
+                Back
+              </div>
             </div>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-lg rounded-xl p-6 border border-blue-400/30">
+            <div className="bg-gradient-to-br from-sky-500/20 to-sky-600/20 backdrop-blur-lg rounded-xl p-6 border border-sky-400/30">
               <div className="flex items-center justify-between mb-2">
-                <DollarSign className="w-8 h-8 text-blue-400" />
-                <TrendingUp className="w-5 h-5 text-blue-300" />
+                <DollarSign className="w-8 h-8 text-sky-400" />
+                <TrendingUp className="w-5 h-5 text-sky-300" />
               </div>
               <p className="text-3xl font-bold text-white mb-1">
                 {parseFloat(platformStats.totalDonations).toFixed(4)}
               </p>
-              <p className="text-blue-200 text-sm">Total Donations (ETH)</p>
+              <p className="text-sky-200 text-sm">Total Donations (ETH)</p>
             </div>
 
             <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-lg rounded-xl p-6 border border-green-400/30">
@@ -456,13 +427,13 @@ export default function AdminDashboard() {
               <p className="text-green-200 text-sm">Registered Charities</p>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-lg rounded-xl p-6 border border-purple-400/30">
+            <div className="bg-gradient-to-br from-sky-500/20 to-sky-600/20 backdrop-blur-lg rounded-xl p-6 border border-sky-400/30">
               <div className="flex items-center justify-between mb-2">
-                <Target className="w-8 h-8 text-purple-400" />
-                <BarChart3 className="w-5 h-5 text-purple-300" />
+                <Target className="w-8 h-8 text-sky-400" />
+                <BarChart3 className="w-5 h-5 text-sky-300" />
               </div>
               <p className="text-3xl font-bold text-white mb-1">{platformStats.campaignCount}</p>
-              <p className="text-purple-200 text-sm">Active Campaigns</p>
+              <p className="text-sky-200 text-sm">Active Campaigns</p>
             </div>
 
             <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-lg rounded-xl p-6 border border-orange-400/30">
@@ -485,7 +456,7 @@ export default function AdminDashboard() {
                 onClick={() => setActiveTab(tab)}
                 className={`flex-1 py-3 px-4 rounded-lg font-semibold transition capitalize ${
                   activeTab === tab
-                    ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                    ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white"
                     : "text-gray-300 hover:bg-white/10"
                 }`}
               >
@@ -503,7 +474,7 @@ export default function AdminDashboard() {
               {/* Recent Activity */}
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Activity className="w-6 h-6 text-purple-400" />
+                  <Activity className="w-6 h-6 text-sky-400" />
                   Recent Activity
                 </h3>
                 <div className="space-y-3">
@@ -523,16 +494,15 @@ export default function AdminDashboard() {
               {/* Quick Actions */}
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Settings className="w-6 h-6 text-purple-400" />
+                  <Settings className="w-6 h-6 text-sky-400" />
                   Quick Actions
                 </h3>
                 <div className="space-y-3">
                   <button
                     onClick={() => {
-                      setActiveTab("charities");
-                      setShowCharityForm(true);
+                      window.location.href = "/register-charity";
                     }}
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-sky-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-sky-600 hover:to-blue-600 transition flex items-center justify-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
                     Register New Charity
@@ -542,7 +512,7 @@ export default function AdminDashboard() {
                       setActiveTab("settings");
                       setShowFeeForm(true);
                     }}
-                    className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-cyan-600 transition flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-sky-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-sky-600 hover:to-blue-600 transition flex items-center justify-center gap-2"
                   >
                     <Settings className="w-5 h-5" />
                     Update Platform Fee
@@ -550,7 +520,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={loadDashboardData}
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full bg-gradient-to-r from-sky-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-sky-600 hover:to-blue-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <Activity className="w-5 h-5" />
                     Refresh Data
@@ -567,7 +537,7 @@ export default function AdminDashboard() {
               {showCharityForm && (
                 <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
                   <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <Plus className="w-6 h-6 text-green-400" />
+                    <Plus className="w-6 h-6 text-sky-400" />
                     Register New Charity
                   </h3>
                   <div className="space-y-4">
@@ -625,7 +595,7 @@ export default function AdminDashboard() {
 
               {!showCharityForm && (
                 <button
-                  onClick={() => setShowCharityForm(true)}
+                  onClick={() => (window.location.href = "/register-charity")}
                   className="bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
@@ -636,7 +606,7 @@ export default function AdminDashboard() {
               {/* Charities List */}
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-purple-400" />
+                  <Users className="w-6 h-6 text-sky-400" />
                   All Charities ({charities.length})
                 </h3>
                 <div className="space-y-4">
@@ -722,7 +692,7 @@ export default function AdminDashboard() {
           {activeTab === "campaigns" && (
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Target className="w-6 h-6 text-purple-400" />
+                <Target className="w-6 h-6 text-sky-400" />
                 All Campaigns ({campaigns.length})
               </h3>
               <div className="grid md:grid-cols-2 gap-4">
@@ -799,7 +769,7 @@ export default function AdminDashboard() {
               {/* Platform Fee Update */}
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Settings className="w-6 h-6 text-purple-400" />
+                  <Settings className="w-6 h-6 text-sky-400" />
                   Platform Fee Configuration
                 </h3>
                 <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/10">
