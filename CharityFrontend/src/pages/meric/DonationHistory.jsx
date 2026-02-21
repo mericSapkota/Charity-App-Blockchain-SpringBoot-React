@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+
+import axios from "axios";
 import { ethers } from "ethers";
 import {
   History,
@@ -26,7 +28,7 @@ import {
 } from "../../service/HistoryService";
 
 export default function DonationHistory() {
-  const { connectWallet, contract, account } = useWallet();
+  const { connectWallet, contract, account, isOwner } = useWallet();
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("donations");
@@ -168,13 +170,16 @@ export default function DonationHistory() {
   // Download donation certificate
   const downloadCertificate = async (txHash) => {
     try {
-      const blob = await generateDonationCertificate(txHash);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `donation-certificate-${txHash.slice(0, 10)}.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
+      axios
+        .get(`http://localhost:8080/api/donations/certificate/${txHash}`, { responseType: "blob" })
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "certificate.pdf");
+          document.body.appendChild(link);
+          link.click();
+        });
     } catch (error) {
       console.error("Error downloading certificate:", error);
       alert("Failed to download certificate");
@@ -231,20 +236,22 @@ export default function DonationHistory() {
               </h1>
               <p className="text-gray-300">Track your charitable contributions</p>
             </div>
-            <button
-              onClick={exportHistory}
-              className="bg-white/10 backdrop-blur-lg text-white px-4 py-2 rounded-lg hover:bg-white/20 transition flex items-center gap-2 border border-white/20"
-            >
-              <Download size={18} />
-              Export History
-            </button>
-            <div
-              className="text-white cursor-pointer bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20"
-              onClick={() => {
-                window.location.href = "/admin/dashboard";
-              }}
-            >
-              Back
+            <div className="flex gap-5">
+              <button
+                onClick={exportHistory}
+                className="bg-white/10 backdrop-blur-lg text-white px-4 py-2 rounded-lg hover:bg-white/20 transition flex items-center gap-2 border border-white/20"
+              >
+                <Download size={18} />
+                Export History
+              </button>
+              <div
+                className="text-white cursor-pointer bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20"
+                onClick={() => {
+                  isOwner ? (window.location.href = "/admin/dashboard") : (window.location.href = "/");
+                }}
+              >
+                Back
+              </div>
             </div>
           </div>
 
@@ -301,7 +308,7 @@ export default function DonationHistory() {
             >
               Donation History
             </button>
-            <button
+            {/* <button
               onClick={() => setActiveTab("transactions")}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${
                 activeTab === "transactions"
@@ -310,7 +317,7 @@ export default function DonationHistory() {
               }`}
             >
               All Transactions
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -402,6 +409,7 @@ export default function DonationHistory() {
                               </span>
                             )}
                           </div>
+                          <p className="text-md text-gray-500">Transaction Hash: {donation.txHash}</p>
                           {donation.campaignTitle && (
                             <p className="text-sm text-gray-300 mb-2">{donation.campaignTitle}</p>
                           )}
@@ -410,9 +418,10 @@ export default function DonationHistory() {
                               <Calendar className="w-3 h-3" />
                               {new Date(donation.timestamp).toLocaleDateString()}
                             </span>
+
                             {donation.txHash && (
                               <a
-                                href={`https://etherscan.io/tx/${donation.txHash}`}
+                                href={`https://sepolia.etherscan.io/tx/${donation.txHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1 hover:text-pink-400 transition"

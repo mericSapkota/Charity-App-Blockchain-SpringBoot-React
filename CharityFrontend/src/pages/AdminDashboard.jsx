@@ -397,7 +397,7 @@ export default function AdminDashboard() {
               <div
                 className="text-white cursor-pointer bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 border border-white/20"
                 onClick={() => {
-                  window.location.href = "/admin/dashboard";
+                  window.location.href = "/";
                 }}
               >
                 Back

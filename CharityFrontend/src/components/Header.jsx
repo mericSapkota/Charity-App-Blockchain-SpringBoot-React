@@ -28,7 +28,7 @@ const Header = () => {
           href="/" // <-- CRITICAL CHANGE: Sets the link destination to the home page
           className="flex items-center space-x-2 cursor-pointer hover:opacity-90 transition" // Added hover effect
         >
-          <FaGlobe className={`text-3xl ${primaryText}`} />
+          <img src="/charityapplogo.png" className="w-16 h-12" alt="ChainHeart Logo" />
           <span className={`text-2xl font-extrabold ${isDark ? "text-white" : "text-zinc-800"}`}>ChainHeart</span>
         </a>
         {/* <-- CLOSING ANCHOR TAG */} {/* 🔗 Navigation Links (Desktop) */}
@@ -75,7 +75,7 @@ const Header = () => {
               className={`absolute top-16 w-40 rounded-xl shadow-lg border border-gray-200 z-50 ${isDark ? "bg-black" : " bg-white"}`}
             >
               <button
-                className="w-full text-left cursor-pointer px-4 py-2   rounded-t-xl"
+                className={`w-full text-left cursor-pointer px-4 py-2 rounded-t-xl ${isDark ? "text-white" : "text-zinc-800"}`}
                 onClick={() => {
                   // navigate to history page
                   isOwner ? (window.location.href = "/admin/dashboard") : (window.location.href = "/donation-history");

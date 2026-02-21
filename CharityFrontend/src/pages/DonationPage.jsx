@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { FaLock, FaEthereum, FaCheckCircle, FaClock } from "react-icons/fa";
 import { useWallet } from "../contexts/WalletContext";
 import { saveDonation, saveTransactionHistory } from "../service/HistoryService";
+import Header from "../components/Header";
 
 const DonatePage = () => {
   const [amount, setAmount] = useState("");
@@ -89,24 +90,26 @@ const DonatePage = () => {
 
         if (campaign.isActive && Number(campaign.deadline) * 1000 > Date.now()) {
           const charity = await contractInstance.charities(campaign.charityId);
+          console.log(charity, "chariyy");
+          if (charity.isActive) {
+            const goalInEth = ethers.formatEther(campaign.goalAmount);
+            const raisedInEth = ethers.formatEther(campaign.raisedAmount);
+            const progressPercent = (parseFloat(raisedInEth) / parseFloat(goalInEth)) * 100;
 
-          const goalInEth = ethers.formatEther(campaign.goalAmount);
-          const raisedInEth = ethers.formatEther(campaign.raisedAmount);
-          const progressPercent = (parseFloat(raisedInEth) / parseFloat(goalInEth)) * 100;
-
-          campaignList.push({
-            id: i,
-            charityId: Number(campaign.charityId),
-            charityName: charity.name,
-            charityWallet: charity.wallet,
-            title: campaign.title,
-            description: campaign.description,
-            goalAmount: goalInEth,
-            raisedAmount: raisedInEth,
-            deadline: new Date(Number(campaign.deadline) * 1000),
-            isActive: campaign.isActive,
-            progressPercent: Math.min(progressPercent, 100),
-          });
+            campaignList.push({
+              id: i,
+              charityId: Number(campaign.charityId),
+              charityName: charity.name,
+              charityWallet: charity.wallet,
+              title: campaign.title,
+              description: campaign.description,
+              goalAmount: goalInEth,
+              raisedAmount: raisedInEth,
+              deadline: new Date(Number(campaign.deadline) * 1000),
+              isActive: campaign.isActive,
+              progressPercent: Math.min(progressPercent, 100),
+            });
+          }
         }
       }
 
@@ -335,6 +338,7 @@ const DonatePage = () => {
       )}
 
       {/* Header Section */}
+      <Header />
       <section className={`py-16 text-center ${lightBg}`}>
         <div className="max-w-4xl mx-auto px-4">
           <h1 className={`text-4xl md:text-5xl font-extrabold mb-3 ${primaryHighlight}`}>Donate with Ethereum</h1>

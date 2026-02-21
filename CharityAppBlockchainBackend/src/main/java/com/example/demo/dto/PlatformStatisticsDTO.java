@@ -2,6 +2,9 @@ package com.example.demo.dto;
 
 import lombok.Data;
 
+/**
+ * DTO for Platform Statistics
+ */
 @Data
 public class PlatformStatisticsDTO {
     private Long totalDonations;
